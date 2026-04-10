@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.4] - 2026-04-10
+
+### Added
+
+- New `FLIP` button after `AUTO ALIGN` for rotating the model by 180 degrees.
+- Automatic storage of the flip axis after `AUTO ALIGN`.
+- User-focused README with a clearer workflow description.
+
+### Changed
+
+- `AUTO ALIGN` now analyzes the active mesh without requiring selected polygons.
+- `AUTO ALIGN` now searches for the best flat support surface for 3D-print placement.
+- Updated addon version to `1.0.4`.
+
+### Fixed
+
+- `Store Selected Faces` no longer overwrites the axis chosen manually by the user.
+- Reduced unexpected axis jumps during manual side storage.
+
 ## [1.0.3] - 2026-04-10
 
 ### Added

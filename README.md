@@ -1,118 +1,139 @@
 # Scan Surface Align
 
-![Scan Surface Align Logo](assets/scan-surface-align-logo.svg)
+Blender addon for scan cleanup, mesh orientation, and quick preparation for 3D printing.
 
-Blender addon for fast alignment of selected scan surfaces perpendicular to world axes from the right-side `N` panel.
-
-Автор: `Glazyrin Alexey Sergeevich`  
-Студия: `3dpotok.ru`  
+Author: `Glazyrin Alexey Sergeevich`  
+Studio: `3dpotok.ru`  
 Telegram: `@standalone2k`  
 Website: `https://3dpotok.ru`  
-Version: `1.0.3`  
+Version: `1.0.4`  
 Blender: `5.1`
 
-## RU
+## Overview
 
-`Scan Surface Align` это аддон для Blender, который помогает быстро выравнивать выделенные фрагменты сканов, hard-surface частей и неровных участков меша по мировым осям `X`, `Y`, `Z`.
+`Scan Surface Align` helps rotate scanned meshes, hard-surface parts, and irregular models into clean working positions.
 
-Аддон сделан для практической работы со сканами: можно сохранить две стороны модели, автоматически подобрать оси, выполнить точное выравнивание в один клик и быстро крутить текущую выборку через `Quick Align`.
+The addon supports two different workflows:
 
-### Основной функционал
+- Manual alignment by selected polygons
+- Automatic print-oriented alignment without polygon selection
 
-- Сохранение двух наборов полигонов: `Side 1` и `Side 2`.
-- Выравнивание одной стороны перпендикулярно оси `X`, `Y` или `Z`.
-- Двухстороннее выравнивание для снятия остаточного поворота.
-- `AUTO AXES` для автоматического подбора ближайших мировых осей.
-- `AUTO ALIGN` для автоматического выравнивания по сохраненным сторонам.
-- `Quick Align` для мгновенного выравнивания текущего выделения.
-- Повторное нажатие на `X`, `Y` или `Z` в `Quick Align` переворачивает модель на 180 градусов.
-- Режим `Rotate` для обычного поворота объекта.
-- Режим `Bake Rotation` для применения поворота к геометрии.
-- Опция `Center Origin` для переноса origin в центр после выравнивания.
-- Панель справа: `View3D > N-panel > Scan Align`.
+It works from the right-side `N` panel in `View3D > Scan Align`.
 
-### Документация
+## Кратко На Русском
 
-#### Установка
+`Scan Surface Align` помогает быстро выровнять скан, деталь или сложный меш в удобное рабочее положение.
 
-1. Скачайте архив релиза или создайте `zip` из папки `scan_surface_align`.
-2. В Blender откройте `Edit > Preferences > Add-ons > Install...`.
-3. Выберите архив и включите `Scan Surface Align`.
+Есть два основных режима:
 
-#### Быстрый старт
+- ручное выравнивание по выбранным полигонам
+- автоматическое выравнивание для 3D-печати без выделения полигонов
 
-1. Перейдите в `Edit Mode` на mesh-объекте.
-2. Выделите полигоны первой стороны и нажмите `Store Selected Faces`.
-3. При необходимости выделите вторую сторону и сохраните ее в `Side 2`.
-4. Выберите целевые оси вручную или нажмите `Auto Axes`.
-5. Нажмите `ALIGN` или `AUTO ALIGN`.
+Если нужен стабильный вариант укладки модели на стол или на стол печати, достаточно выбрать объект и нажать `AUTO ALIGN`. Если после этого нужно перевернуть модель, используйте `FLIP`.
 
-#### Горячие клавиши
+## What's New In 1.0.4
 
-- `Ctrl + Alt + 1` -> сохранить `Side 1`
-- `Ctrl + Alt + 2` -> сохранить `Side 2`
+- `AUTO ALIGN` now works on the whole active mesh and does not require selected polygons
+- `AUTO ALIGN` searches for the best flat support surface for placing the model on the print bed
+- Added `FLIP` button after `AUTO ALIGN`
+- `Store Selected Faces` no longer changes the axis you selected manually
+
+## Main Features
+
+- Store two polygon sets: `Side 1` and `Side 2`
+- Align stored sides manually to `X`, `Y`, or `Z`
+- `AUTO AXES` for manual side-based alignment
+- `AUTO ALIGN` for automatic print support orientation
+- `FLIP` to turn the model 180 degrees after auto alignment
+- `Quick Align` for the current polygon selection
+- Repeating `Quick Align` on the same axis flips the model by 180 degrees
+- `Rotate` and `Bake Rotation` modes
+- Optional `Center Origin`
+
+## Workflow
+
+### 1. Manual Alignment By Polygons
+
+Use this when you want precise control over how a specific surface should be aligned.
+
+1. Enter `Edit Mode`
+2. Select polygons for `Side 1`
+3. Click `Store Selected Faces`
+4. Choose the target axis manually: `X`, `Y`, or `Z`
+5. Optionally store `Side 2`
+6. Click `ALIGN`
+
+### 2. Automatic Alignment For 3D Printing
+
+Use this when you want the addon to orient the mesh automatically for a stable print-bed position.
+
+1. Select the mesh object
+2. No polygon selection is required
+3. Click `AUTO ALIGN`
+4. The addon analyzes the active mesh and finds the best flat support surface
+5. If needed, click `FLIP` to invert the model by 180 degrees
+
+## Quick Align
+
+`Quick Align` works from the current polygon selection in `Edit Mode`.
+
+- `Auto` chooses the closest axis automatically
+- `X`, `Y`, `Z` align directly to the chosen world axis
+- Pressing the same axis again flips the model by 180 degrees
+
+## Hotkeys
+
+- `Ctrl + Alt + 1` -> store `Side 1`
+- `Ctrl + Alt + 2` -> store `Side 2`
 - `Ctrl + Alt + X / Y / Z` -> `Quick Align`
 - `Ctrl + Alt + A` -> `ALIGN`
 - `Ctrl + Shift + Alt + A` -> `AUTO ALIGN`
 
-### Медиа-плейсхолдеры
+## Interface
 
-Здесь оставлены пустые места под ваши GIF и скриншоты. Просто загрузите файлы в `docs/media/` и раскомментируйте нужные строки.
+Sidebar location:
 
-```md
-<!-- ![Main Preview](docs/media/preview-main.png) -->
-<!-- ![Workflow GIF](docs/media/workflow.gif) -->
-<!-- ![Quick Align Demo](docs/media/quick-align.gif) -->
-<!-- ![Auto Align Demo](docs/media/auto-align.gif) -->
-```
+`View3D > N-panel > Scan Align`
 
-Рекомендуемые имена файлов:
+Main controls:
 
-- `docs/media/preview-main.png`
+- `Store Selected Faces`
+- `ALIGN`
+- `AUTO AXES`
+- `AUTO ALIGN`
+- `FLIP`
+- `Quick Align`
+
+## Media
+
+Preview:
+
+![Preview](docs/media/preview-main.png)
+
+Optional demo files available in the repository:
+
 - `docs/media/workflow.gif`
 - `docs/media/quick-align.gif`
 - `docs/media/auto-align.gif`
 
-## EN
+If you want, these GIF files can be embedded directly into the README later.
 
-`Scan Surface Align` is a Blender addon for quickly aligning selected scan surfaces, hard-surface fragments, and uneven mesh regions perpendicular to the world `X`, `Y`, and `Z` axes.
+## Installation
 
-It is designed for real scan cleanup workflows: you can store two surface sides, auto-pick the closest axes, perform precise final alignment with a single click, and quickly rotate the current face selection using `Quick Align`.
-
-### Key Features
-
-- Store two polygon sets: `Side 1` and `Side 2`.
-- Align one side perpendicular to the `X`, `Y`, or `Z` axis.
-- Use two-side alignment to remove remaining rotational ambiguity.
-- `AUTO AXES` chooses the closest world axes automatically.
-- `AUTO ALIGN` aligns the stored sides automatically.
-- `Quick Align` instantly aligns the current selection.
-- Repeating `Quick Align` on the same `X`, `Y`, or `Z` axis flips the model by 180 degrees.
-- `Rotate` mode keeps object rotation.
-- `Bake Rotation` applies the rotation directly to mesh geometry.
-- `Center Origin` optionally moves the origin after alignment.
-- Sidebar location: `View3D > N-panel > Scan Align`.
-
-## Project Structure
-
-```text
-scan_surface_align/          Blender addon package
-assets/                      Project graphics and logo
-docs/media/                  Place your screenshots and GIFs here
-README.md                    Project documentation
-CHANGELOG.md                 Version history
-LICENSE                      Open-source license
-```
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md).
+1. Download the addon release archive
+2. In Blender open `Edit > Preferences > Add-ons > Install...`
+3. Select the addon zip file
+4. Enable `Scan Surface Align`
 
 ## License
 
 This project is licensed under the GNU General Public License v3.0 or later.
 
 See [LICENSE](LICENSE).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## Contacts
 

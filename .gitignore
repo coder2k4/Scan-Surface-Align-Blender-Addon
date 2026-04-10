@@ -9,3 +9,4 @@ __pycache__/
 Thumbs.db
 .DS_Store
 scan_surface_align.zip
+scan_surface_align_v*.zip

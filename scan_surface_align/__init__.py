@@ -10,7 +10,7 @@ License: GPL-3.0-or-later
 bl_info = {
     "name": "Scan Surface Align",
     "author": "Glazyrin Alexey Sergeevich | 3dpotok.ru",
-    "version": (1, 0, 3),
+    "version": (1, 0, 4),
     "blender": (5, 1, 0),
     "location": "View3D > Sidebar > Scan Align",
     "description": (
@@ -26,7 +26,7 @@ bl_info = {
 }
 
 import itertools
-from math import inf
+from math import atan2, cos, inf, radians
 
 import bmesh
 import bpy
@@ -172,6 +172,176 @@ def collect_face_stats(obj, indices):
         raise ValueError("Stored face set is empty or no longer valid.")
 
     return normal_sum.normalized(), center_sum / total_area, valid_count
+
+
+def create_analysis_bmesh(obj):
+    if obj.mode == "EDIT":
+        bm = bmesh.from_edit_mesh(obj.data)
+        owned = False
+    else:
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        owned = True
+
+    bm.faces.ensure_lookup_table()
+    bm.faces.index_update()
+    bm.normal_update()
+    return bm, owned
+
+
+def object_world_diagonal(obj):
+    world_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    min_corner = Vector((
+        min(corner.x for corner in world_corners),
+        min(corner.y for corner in world_corners),
+        min(corner.z for corner in world_corners),
+    ))
+    max_corner = Vector((
+        max(corner.x for corner in world_corners),
+        max(corner.y for corner in world_corners),
+        max(corner.z for corner in world_corners),
+    ))
+    return max((max_corner - min_corner).length, 1e-4)
+
+
+def object_world_bounds_center(obj):
+    world_corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    center = Vector((0.0, 0.0, 0.0))
+    for corner in world_corners:
+        center += corner
+    return center / max(len(world_corners), 1)
+
+
+def collect_flat_surface_candidates(obj, angle_limit_degrees=8.0, plane_tolerance_ratio=0.006):
+    if not obj or obj.type != "MESH":
+        raise ValueError("Active object must be a mesh.")
+
+    bm, owned = create_analysis_bmesh(obj)
+    normal_matrix = obj.matrix_world.to_3x3().inverted().transposed()
+    cosine_limit = cos(radians(angle_limit_degrees))
+    plane_tolerance = max(object_world_diagonal(obj) * plane_tolerance_ratio, 1e-5)
+    total_area = sum(max(face.calc_area(), 1e-8) for face in bm.faces)
+    visited = set()
+    candidates = []
+
+    try:
+        for seed_face in sorted(bm.faces, key=lambda face: face.calc_area(), reverse=True):
+            if seed_face.index in visited:
+                continue
+
+            seed_normal = (normal_matrix @ seed_face.normal).normalized()
+            seed_center = obj.matrix_world @ seed_face.calc_center_median()
+            stack = [seed_face]
+            cluster_indices = []
+            area_sum = 0.0
+            normal_sum = Vector((0.0, 0.0, 0.0))
+            center_sum = Vector((0.0, 0.0, 0.0))
+            alignment_sum = 0.0
+
+            while stack:
+                face = stack.pop()
+                if face.index in visited:
+                    continue
+
+                area = max(face.calc_area(), 1e-8)
+                normal_world = (normal_matrix @ face.normal).normalized()
+                center_world = obj.matrix_world @ face.calc_center_median()
+
+                if normal_world.dot(seed_normal) < cosine_limit:
+                    continue
+                if abs((center_world - seed_center).dot(seed_normal)) > plane_tolerance:
+                    continue
+
+                visited.add(face.index)
+                cluster_indices.append(face.index)
+                area_sum += area
+                normal_sum += normal_world * area
+                center_sum += center_world * area
+                alignment_sum += max(normal_world.dot(seed_normal), 0.0) * area
+
+                for edge in face.edges:
+                    for linked_face in edge.link_faces:
+                        if linked_face.index not in visited:
+                            stack.append(linked_face)
+
+            if not cluster_indices or normal_sum.length < 1e-8:
+                continue
+
+            average_alignment = alignment_sum / max(area_sum, 1e-8)
+            area_ratio = area_sum / max(total_area, 1e-8)
+            flatness_score = area_sum * (average_alignment ** 2)
+
+            candidates.append({
+                "faces": cluster_indices,
+                "area": area_sum,
+                "area_ratio": area_ratio,
+                "normal": normal_sum.normalized(),
+                "center": center_sum / area_sum,
+                "score": flatness_score,
+            })
+    finally:
+        if owned:
+            bm.free()
+
+    if not candidates:
+        raise ValueError("Could not detect a flat support surface on this mesh.")
+
+    candidates.sort(key=lambda item: (item["score"], item["area"]), reverse=True)
+    return candidates
+
+
+def choose_print_alignment_candidates(obj):
+    candidates = collect_flat_surface_candidates(obj)
+    primary = candidates[0]
+    secondary = None
+    best_secondary_score = -inf
+
+    for candidate in candidates[1:]:
+        orthogonality = 1.0 - abs(primary["normal"].dot(candidate["normal"]))
+        if orthogonality < 0.35:
+            continue
+        secondary_score = candidate["area"] * orthogonality
+        if secondary_score > best_secondary_score:
+            secondary = candidate
+            best_secondary_score = secondary_score
+
+    return primary, secondary
+
+
+def rotation_for_print_alignment(primary_normal, secondary_normal=None):
+    base_target = Vector((0.0, 0.0, -1.0))
+    base_rotation = primary_normal.rotation_difference(base_target).to_matrix()
+    secondary_axis = None
+
+    if secondary_normal is None:
+        return base_rotation, secondary_axis
+
+    rotated_secondary = base_rotation @ secondary_normal
+    projected = Vector((rotated_secondary.x, rotated_secondary.y, 0.0))
+    if projected.length < 1e-6:
+        return base_rotation, secondary_axis
+
+    if abs(projected.x) >= abs(projected.y):
+        target_angle = 0.0 if projected.x >= 0.0 else 3.141592653589793
+        secondary_axis = "X"
+    else:
+        target_angle = 1.5707963267948966 if projected.y >= 0.0 else -1.5707963267948966
+        secondary_axis = "Y"
+
+    current_angle = atan2(projected.y, projected.x)
+    z_rotation = Matrix.Rotation(target_angle - current_angle, 3, "Z")
+    return z_rotation @ base_rotation, secondary_axis
+
+
+def auto_align_for_print(context, obj, apply_mode="ROTATE", center_origin=True):
+    primary, secondary = choose_print_alignment_candidates(obj)
+    rotation, secondary_axis = rotation_for_print_alignment(
+        primary["normal"],
+        secondary["normal"] if secondary else None,
+    )
+    pivot = (primary["center"] + secondary["center"]) * 0.5 if secondary else primary["center"]
+    apply_world_rotation(context, obj, rotation, pivot, apply_mode, center_origin)
+    return primary, secondary, secondary_axis
 
 
 def orthonormal_basis(primary, secondary):
@@ -321,6 +491,14 @@ class SCANALIGN_PG_settings(PropertyGroup):
         description="Move the origin to the mesh bounds after alignment",
         default=True,
     )
+    auto_flip_axis: EnumProperty(
+        name="Auto Flip Axis",
+        items=[
+            ("X", "X", "Flip around world X"),
+            ("Y", "Y", "Flip around world Y"),
+        ],
+        default="X",
+    )
 
 
 class SCANALIGN_OT_store_side(Operator):
@@ -351,12 +529,6 @@ class SCANALIGN_OT_store_side(Operator):
 
         settings.target_object = obj
         setattr(settings, f"side{self.side}_faces", serialize_faces(selected_faces))
-
-        try:
-            normal, _, _ = collect_face_stats(obj, selected_faces)
-            setattr(settings, f"side{self.side}_axis", axis_name_for_vector(normal))
-        except ValueError:
-            pass
 
         self.report({"INFO"}, f"Stored {len(selected_faces)} faces for Side {self.side}.")
         return {"FINISHED"}
@@ -455,48 +627,109 @@ class SCANALIGN_OT_auto_axes(Operator):
 class SCANALIGN_OT_align(Operator):
     bl_idname = "scan_align.align"
     bl_label = "Align"
-    bl_description = "Align the stored scan sides perpendicular to the selected axes"
+    bl_description = "Align stored sides manually or auto-detect the best print support orientation"
     bl_options = {"REGISTER", "UNDO"}
 
     auto_axes: BoolProperty(default=False)
 
     def execute(self, context):
         settings = context.scene.scan_align_settings
-        obj = ensure_mesh_object(context, use_target=True)
+        if self.auto_axes:
+            obj = ensure_mesh_object(context, use_target=False) or ensure_mesh_object(context, use_target=True)
+        else:
+            obj = ensure_mesh_object(context, use_target=True)
 
         if not obj:
-            self.report({"ERROR"}, "No target mesh object is stored yet.")
+            self.report({"ERROR"}, "No active mesh object is available for alignment.")
             return {"CANCELLED"}
-
-        side1_faces = deserialize_faces(settings.side1_faces)
-        side2_faces = deserialize_faces(settings.side2_faces)
-
-        if not side1_faces:
-            self.report({"ERROR"}, "Store Side 1 faces first.")
-            return {"CANCELLED"}
-
-        axis1 = settings.side1_axis
-        axis2 = settings.side2_axis
 
         try:
-            normal_a, _, _ = collect_face_stats(obj, side1_faces)
             if self.auto_axes:
-                if side2_faces:
-                    normal_b, _, _ = collect_face_stats(obj, side2_faces)
-                    axis1, axis2 = best_dual_axis_match(normal_a, normal_b)
-                    settings.side1_axis = axis1
-                    settings.side2_axis = axis2
+                primary, secondary, secondary_axis = auto_align_for_print(
+                    context=context,
+                    obj=obj,
+                    apply_mode=settings.apply_mode,
+                    center_origin=settings.center_origin,
+                )
+                settings.target_object = obj
+                settings.side1_faces = serialize_faces(primary["faces"])
+                settings.side1_axis = "Z"
+                settings.auto_flip_axis = secondary_axis or "X"
+                if secondary:
+                    settings.side2_faces = serialize_faces(secondary["faces"])
+                    settings.side2_axis = secondary_axis or "Y"
                 else:
-                    axis1 = axis_name_for_vector(normal_a)
-                    settings.side1_axis = axis1
+                    settings.side2_faces = ""
+            else:
+                side1_faces = deserialize_faces(settings.side1_faces)
+                side2_faces = deserialize_faces(settings.side2_faces)
 
-            align_face_sets(
+                if not side1_faces:
+                    self.report({"ERROR"}, "Store Side 1 faces first.")
+                    return {"CANCELLED"}
+
+                axis1 = settings.side1_axis
+                axis2 = settings.side2_axis
+                align_face_sets(
+                    context=context,
+                    obj=obj,
+                    side1_faces=side1_faces,
+                    side1_axis=axis1,
+                    side2_faces=side2_faces,
+                    side2_axis=axis2,
+                    apply_mode=settings.apply_mode,
+                    center_origin=settings.center_origin,
+                )
+        except ValueError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        except RuntimeError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+        if self.auto_axes:
+            if secondary:
+                self.report({"INFO"}, f"Auto-aligned mesh for printing using the main flat side and secondary {secondary_axis} guide.")
+            else:
+                self.report({"INFO"}, "Auto-aligned mesh for printing using the main flat support side.")
+        else:
+            side2_faces = deserialize_faces(settings.side2_faces)
+            if side2_faces:
+                self.report({"INFO"}, f"Aligned Side 1 to {settings.side1_axis} and Side 2 to {settings.side2_axis}.")
+            else:
+                self.report({"INFO"}, f"Aligned Side 1 to {settings.side1_axis}.")
+        return {"FINISHED"}
+
+
+class SCANALIGN_OT_flip(Operator):
+    bl_idname = "scan_align.flip"
+    bl_label = "Flip"
+    bl_description = "Flip the active mesh 180 degrees after AUTO ALIGN"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return obj and obj.type == "MESH"
+
+    def execute(self, context):
+        settings = context.scene.scan_align_settings
+        obj = ensure_mesh_object(context, use_target=False) or ensure_mesh_object(context, use_target=True)
+
+        if not obj:
+            self.report({"ERROR"}, "No active mesh object is available for flip.")
+            return {"CANCELLED"}
+
+        axis_name = settings.auto_flip_axis or "X"
+        pivot = object_world_bounds_center(obj)
+        rotation = Matrix.Rotation(radians(180.0), 3, axis_name)
+
+        try:
+            apply_world_rotation(
                 context=context,
                 obj=obj,
-                side1_faces=side1_faces,
-                side1_axis=axis1,
-                side2_faces=side2_faces,
-                side2_axis=axis2,
+                rotation=rotation,
+                pivot_world=pivot,
                 apply_mode=settings.apply_mode,
                 center_origin=settings.center_origin,
             )
@@ -507,10 +740,7 @@ class SCANALIGN_OT_align(Operator):
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
 
-        if side2_faces:
-            self.report({"INFO"}, f"Aligned Side 1 to {axis1} and Side 2 to {axis2}.")
-        else:
-            self.report({"INFO"}, f"Aligned Side 1 to {axis1}.")
+        self.report({"INFO"}, f"Flipped mesh 180 degrees around {axis_name}.")
         return {"FINISHED"}
 
 
@@ -623,6 +853,11 @@ class SCANALIGN_PT_main_panel(Panel):
         auto_row.scale_y = 1.15
         align_auto = auto_row.operator("scan_align.align", text="AUTO ALIGN", icon="DRIVER_ROTATIONAL_DIFFERENCE")
         align_auto.auto_axes = True
+        flip_row = transform_box.row(align=True)
+        flip_row.scale_y = 1.05
+        flip_row.operator("scan_align.flip", text="FLIP", icon="FILE_REFRESH")
+        transform_box.label(text=f"AUTO ALIGN analyzes the active mesh for print support")
+        transform_box.label(text=f"FLIP uses {settings.auto_flip_axis} after AUTO ALIGN")
 
         quick_box = layout.box()
         quick_box.label(text="Quick Align Current Selection")
@@ -647,6 +882,7 @@ classes = (
     SCANALIGN_OT_clear_side,
     SCANALIGN_OT_auto_axes,
     SCANALIGN_OT_align,
+    SCANALIGN_OT_flip,
     SCANALIGN_OT_quick_align_selection,
     SCANALIGN_PT_main_panel,
 )
