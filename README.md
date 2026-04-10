@@ -110,13 +110,24 @@ Preview:
 
 ![Preview](docs/media/preview-main.png)
 
-Optional demo files available in the repository:
+Animated demos:
 
+![Workflow Demo](docs/media/workflow.gif)
+
+![Quick Align Demo](docs/media/quick-align.gif)
+
+![Auto Align Demo](docs/media/auto-align.gif)
+
+Detailed media page with descriptions:
+
+[docs/media/README.md](docs/media/README.md)
+
+Available files:
+
+- `docs/media/preview-main.png`
 - `docs/media/workflow.gif`
 - `docs/media/quick-align.gif`
 - `docs/media/auto-align.gif`
-
-If you want, these GIF files can be embedded directly into the README later.
 
 ## Installation
 
