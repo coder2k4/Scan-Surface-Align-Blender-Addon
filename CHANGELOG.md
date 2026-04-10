@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.6] - 2026-04-10
+
+### Added
+
+- Full Russian user guide with detailed button descriptions and usage modes.
+- Full English user guide with detailed button descriptions and usage modes.
+- Links from the main project page to both guides.
+- Cleaner onboarding structure in the main README.
+
+### Changed
+
+- Improved project documentation formatting for GitHub readability.
+- Added visual section markers and clearer reading flow in the README files.
+
+### Fixed
+
+- Fixed `TO FLOOR` so the mesh is placed by its actual lowest point instead of appearing under the floor plane.
+
 ## [1.0.5] - 2026-04-10
 
 ### Added

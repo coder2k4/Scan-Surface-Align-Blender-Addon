@@ -10,7 +10,7 @@ License: GPL-3.0-or-later
 bl_info = {
     "name": "Scan Surface Align",
     "author": "Glazyrin Alexey Sergeevich | 3dpotok.ru",
-    "version": (1, 0, 5),
+    "version": (1, 0, 6),
     "blender": (5, 1, 0),
     "location": "View3D > Sidebar > Scan Align",
     "description": (
@@ -270,7 +270,9 @@ def translate_object_world_z(context, obj, delta_z):
         if obj.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
 
-        obj.matrix_world.translation += Vector((0.0, 0.0, delta_z))
+        # Apply the offset in world space so parenting and transformed matrices
+        # do not invert the movement direction.
+        obj.matrix_world = Matrix.Translation((0.0, 0.0, delta_z)) @ obj.matrix_world
     finally:
         for item in context.selected_objects:
             item.select_set(False)
@@ -860,6 +862,15 @@ class SCANALIGN_OT_to_floor(Operator):
                 source_z = object_lowest_world_z(obj)
 
             translate_object_world_z(context, obj, -source_z)
+
+            # Verify against the actual resulting position and correct any mismatch.
+            if obj.mode == "EDIT":
+                correction_z = selected_face_plane_z(obj)
+            else:
+                correction_z = object_lowest_world_z(obj)
+
+            if abs(correction_z) > 1e-5:
+                translate_object_world_z(context, obj, -correction_z)
         except ValueError as exc:
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
