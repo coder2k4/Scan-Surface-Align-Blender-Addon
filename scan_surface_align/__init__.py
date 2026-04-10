@@ -227,6 +227,13 @@ def object_lowest_world_z(obj):
     return min((obj.matrix_world @ vertex.co).z for vertex in mesh.vertices)
 
 
+def object_world_vertex_positions(obj):
+    if obj.mode == "EDIT":
+        bm = bmesh.from_edit_mesh(obj.data)
+        return [obj.matrix_world @ vert.co for vert in bm.verts]
+    return [obj.matrix_world @ vertex.co for vertex in obj.data.vertices]
+
+
 def selected_face_plane_z(obj):
     if obj.mode != "EDIT":
         raise ValueError("Selected polygon plane is available only in Edit Mode.")
@@ -247,6 +254,24 @@ def selected_face_plane_z(obj):
         total_area += area
 
     return z_sum / max(total_area, 1e-8)
+
+
+def selected_face_floor_target(obj, plane_center, plane_normal):
+    normal = plane_normal.normalized()
+    vertices_world = object_world_vertex_positions(obj)
+    if not vertices_world:
+        return Vector((0.0, 0.0, -1.0))
+
+    positive_extent = 0.0
+    negative_extent = 0.0
+    for vertex_world in vertices_world:
+        distance = (vertex_world - plane_center).dot(normal)
+        positive_extent = max(positive_extent, distance)
+        negative_extent = max(negative_extent, -distance)
+
+    if positive_extent > negative_extent:
+        return Vector((0.0, 0.0, 1.0))
+    return Vector((0.0, 0.0, -1.0))
 
 
 def translate_object_world_z(context, obj, delta_z):
@@ -840,7 +865,7 @@ class SCANALIGN_OT_flip(Operator):
 class SCANALIGN_OT_to_floor(Operator):
     bl_idname = "scan_align.to_floor"
     bl_label = "To Floor"
-    bl_description = "Move the mesh down to Z=0 using the lowest point in Object Mode or the selected polygon plane in Edit Mode"
+    bl_description = "Move the mesh to Z=0 using the lowest point in Object Mode or lay the selected polygon plane onto the floor in Edit Mode"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -849,6 +874,7 @@ class SCANALIGN_OT_to_floor(Operator):
         return obj and obj.type == "MESH" and obj.mode in {"OBJECT", "EDIT"}
 
     def execute(self, context):
+        settings = context.scene.scan_align_settings
         obj = ensure_mesh_object(context, use_target=False) or ensure_mesh_object(context, use_target=True)
 
         if not obj:
@@ -857,6 +883,23 @@ class SCANALIGN_OT_to_floor(Operator):
 
         try:
             if obj.mode == "EDIT":
+                selected_faces = get_selected_face_indices(obj)
+                if not selected_faces:
+                    raise ValueError("Select at least one polygon in Edit Mode for TO FLOOR.")
+
+                plane_normal, plane_center, _ = collect_face_stats(obj, selected_faces)
+                target_normal = selected_face_floor_target(obj, plane_center, plane_normal)
+                rotation = plane_normal.rotation_difference(target_normal).to_matrix()
+
+                apply_world_rotation(
+                    context=context,
+                    obj=obj,
+                    rotation=rotation,
+                    pivot_world=plane_center,
+                    apply_mode=settings.apply_mode,
+                    center_origin=settings.center_origin,
+                )
+
                 source_z = selected_face_plane_z(obj)
             else:
                 source_z = object_lowest_world_z(obj)
