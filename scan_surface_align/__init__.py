@@ -10,14 +10,14 @@ License: GPL-3.0-or-later
 bl_info = {
     "name": "Scan Surface Align",
     "author": "Glazyrin Alexey Sergeevich | 3dpotok.ru",
-    "version": (1, 0, 4),
+    "version": (1, 0, 5),
     "blender": (5, 1, 0),
     "location": "View3D > Sidebar > Scan Align",
     "description": (
         "RU: Выравнивание выделенных поверхностей скана перпендикулярно мировым осям "
-        "с сохранением сторон, AUTO ALIGN и Quick Align. "
+        "с сохранением сторон, AUTO ALIGN, TO FLOOR и Quick Align. "
         "EN: Align selected scan surfaces perpendicular to world axes with stored sides, "
-        "AUTO ALIGN, and Quick Align tools."
+        "AUTO ALIGN, TO FLOOR, and Quick Align tools."
     ),
     "doc_url": "https://3dpotok.ru",
     "tracker_url": "https://t.me/standalone2k",
@@ -45,6 +45,12 @@ AXIS_VECTORS = {
     "X": Vector((1.0, 0.0, 0.0)),
     "Y": Vector((0.0, 1.0, 0.0)),
     "Z": Vector((0.0, 0.0, 1.0)),
+}
+
+AXIS_ICONS = {
+    "X": "AXIS_SIDE",
+    "Y": "AXIS_FRONT",
+    "Z": "AXIS_TOP",
 }
 
 addon_keymaps = []
@@ -210,6 +216,75 @@ def object_world_bounds_center(obj):
     for corner in world_corners:
         center += corner
     return center / max(len(world_corners), 1)
+
+
+def object_lowest_world_z(obj):
+    mesh = obj.data
+    if obj.mode == "EDIT":
+        bm = bmesh.from_edit_mesh(mesh)
+        verts = bm.verts
+        return min((obj.matrix_world @ vert.co).z for vert in verts)
+    return min((obj.matrix_world @ vertex.co).z for vertex in mesh.vertices)
+
+
+def selected_face_plane_z(obj):
+    if obj.mode != "EDIT":
+        raise ValueError("Selected polygon plane is available only in Edit Mode.")
+
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    selected_faces = [face for face in bm.faces if face.select]
+
+    if not selected_faces:
+        raise ValueError("Select at least one polygon in Edit Mode for TO FLOOR.")
+
+    total_area = 0.0
+    z_sum = 0.0
+    for face in selected_faces:
+        area = max(face.calc_area(), 1e-8)
+        center_world = obj.matrix_world @ face.calc_center_median()
+        z_sum += center_world.z * area
+        total_area += area
+
+    return z_sum / max(total_area, 1e-8)
+
+
+def translate_object_world_z(context, obj, delta_z):
+    if abs(delta_z) < 1e-8:
+        return
+
+    view_layer = context.view_layer
+    if not object_in_view_layer(view_layer, obj):
+        raise ValueError("Target object is not in the active View Layer.")
+
+    previous_active = view_layer.objects.active if object_in_view_layer(view_layer, view_layer.objects.active) else None
+    previous_mode = obj.mode
+    previous_selection = [item for item in context.selected_objects if object_in_view_layer(view_layer, item)]
+
+    try:
+        for item in previous_selection:
+            item.select_set(False)
+        obj.select_set(True)
+        view_layer.objects.active = obj
+
+        if obj.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+
+        obj.matrix_world.translation += Vector((0.0, 0.0, delta_z))
+    finally:
+        for item in context.selected_objects:
+            item.select_set(False)
+        for item in previous_selection:
+            if item.name in bpy.data.objects:
+                item.select_set(True)
+        if previous_mode != "OBJECT" and obj.name in bpy.data.objects:
+            view_layer.objects.active = obj
+            bpy.ops.object.mode_set(mode=previous_mode)
+        if previous_mode == "OBJECT":
+            if previous_active and previous_active.name in bpy.data.objects:
+                view_layer.objects.active = previous_active
+            else:
+                view_layer.objects.active = obj
 
 
 def collect_flat_surface_candidates(obj, angle_limit_degrees=8.0, plane_tolerance_ratio=0.006):
@@ -501,6 +576,22 @@ class SCANALIGN_PG_settings(PropertyGroup):
     )
 
 
+class SCANALIGN_OT_set_axis(Operator):
+    bl_idname = "scan_align.set_axis"
+    bl_label = "Set Axis"
+    bl_description = "Set the target axis for the stored side"
+    bl_options = {"REGISTER", "UNDO"}
+
+    side: IntProperty(default=1, min=1, max=2)
+    axis: EnumProperty(name="Axis", items=AXIS_ITEMS, default="Z")
+
+    def execute(self, context):
+        settings = context.scene.scan_align_settings
+        setattr(settings, f"side{self.side}_axis", self.axis)
+        self.report({"INFO"}, f"Side {self.side} target axis set to {self.axis}.")
+        return {"FINISHED"}
+
+
 class SCANALIGN_OT_store_side(Operator):
     bl_idname = "scan_align.store_side"
     bl_label = "Store Selected Faces"
@@ -744,6 +835,45 @@ class SCANALIGN_OT_flip(Operator):
         return {"FINISHED"}
 
 
+class SCANALIGN_OT_to_floor(Operator):
+    bl_idname = "scan_align.to_floor"
+    bl_label = "To Floor"
+    bl_description = "Move the mesh down to Z=0 using the lowest point in Object Mode or the selected polygon plane in Edit Mode"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.object
+        return obj and obj.type == "MESH" and obj.mode in {"OBJECT", "EDIT"}
+
+    def execute(self, context):
+        obj = ensure_mesh_object(context, use_target=False) or ensure_mesh_object(context, use_target=True)
+
+        if not obj:
+            self.report({"ERROR"}, "No active mesh object is available for TO FLOOR.")
+            return {"CANCELLED"}
+
+        try:
+            if obj.mode == "EDIT":
+                source_z = selected_face_plane_z(obj)
+            else:
+                source_z = object_lowest_world_z(obj)
+
+            translate_object_world_z(context, obj, -source_z)
+        except ValueError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        except RuntimeError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+        if obj.mode == "EDIT":
+            self.report({"INFO"}, "Moved the selected polygon plane to the floor.")
+        else:
+            self.report({"INFO"}, "Moved the mesh to the floor using the lowest vertex.")
+        return {"FINISHED"}
+
+
 class SCANALIGN_OT_quick_align_selection(Operator):
     bl_idname = "scan_align.quick_align_selection"
     bl_label = "Quick Align Selection"
@@ -805,6 +935,19 @@ class SCANALIGN_PT_main_panel(Panel):
     bl_region_type = "UI"
     bl_category = "Scan Align"
 
+    def draw_axis_buttons(self, layout, settings, side):
+        current_axis = getattr(settings, f"side{side}_axis")
+        row = layout.row(align=True)
+        for axis_name in ("X", "Y", "Z"):
+            operator = row.operator(
+                "scan_align.set_axis",
+                text=axis_name,
+                icon=AXIS_ICONS[axis_name],
+                depress=(current_axis == axis_name),
+            )
+            operator.side = side
+            operator.axis = axis_name
+
     def draw_side_box(self, layout, settings, side):
         faces_data = getattr(settings, f"side{side}_faces")
         face_count = len(deserialize_faces(faces_data))
@@ -814,15 +957,14 @@ class SCANALIGN_PT_main_panel(Panel):
         box.label(text=f"Stored Faces: {face_count}")
         box.label(text=f"Make Side {side} Perpendicular To:")
 
-        axis_row = box.row(align=True)
-        axis_row.prop(settings, f"side{side}_axis", expand=True)
+        self.draw_axis_buttons(box, settings, side)
 
         row = box.row(align=True)
         store = row.operator("scan_align.store_side", text="Store Selected Faces", icon="IMPORT")
         store.side = side
         select = row.operator("scan_align.select_side", text="", icon="RESTRICT_SELECT_OFF")
         select.side = side
-        clear = row.operator("scan_align.clear_side", text="", icon="X")
+        clear = row.operator("scan_align.clear_side", text="", icon="TRASH")
         clear.side = side
 
     def draw(self, context):
@@ -853,19 +995,21 @@ class SCANALIGN_PT_main_panel(Panel):
         auto_row.scale_y = 1.15
         align_auto = auto_row.operator("scan_align.align", text="AUTO ALIGN", icon="DRIVER_ROTATIONAL_DIFFERENCE")
         align_auto.auto_axes = True
-        flip_row = transform_box.row(align=True)
-        flip_row.scale_y = 1.05
-        flip_row.operator("scan_align.flip", text="FLIP", icon="FILE_REFRESH")
+        floor_row = transform_box.row(align=True)
+        floor_row.scale_y = 1.05
+        floor_row.operator("scan_align.to_floor", text="TO FLOOR", icon="IMPORT")
+        floor_row.operator("scan_align.flip", text="FLIP", icon="FILE_REFRESH")
         transform_box.label(text=f"AUTO ALIGN analyzes the active mesh for print support")
         transform_box.label(text=f"FLIP uses {settings.auto_flip_axis} after AUTO ALIGN")
+        transform_box.label(text="TO FLOOR: object lowest vertex / edit selected polygon plane")
 
         quick_box = layout.box()
         quick_box.label(text="Quick Align Current Selection")
         quick_row = quick_box.row(align=True)
-        quick_row.operator("scan_align.quick_align_selection", text="Auto").axis = "AUTO"
-        quick_row.operator("scan_align.quick_align_selection", text="X").axis = "X"
-        quick_row.operator("scan_align.quick_align_selection", text="Y").axis = "Y"
-        quick_row.operator("scan_align.quick_align_selection", text="Z").axis = "Z"
+        quick_row.operator("scan_align.quick_align_selection", text="Auto", icon="ORIENTATION_GLOBAL").axis = "AUTO"
+        quick_row.operator("scan_align.quick_align_selection", text="X", icon=AXIS_ICONS["X"]).axis = "X"
+        quick_row.operator("scan_align.quick_align_selection", text="Y", icon=AXIS_ICONS["Y"]).axis = "Y"
+        quick_row.operator("scan_align.quick_align_selection", text="Z", icon=AXIS_ICONS["Z"]).axis = "Z"
         quick_box.label(text="Press X / Y / Z again to flip 180 degrees")
 
         help_box = layout.box()
@@ -877,12 +1021,14 @@ class SCANALIGN_PT_main_panel(Panel):
 
 classes = (
     SCANALIGN_PG_settings,
+    SCANALIGN_OT_set_axis,
     SCANALIGN_OT_store_side,
     SCANALIGN_OT_select_side,
     SCANALIGN_OT_clear_side,
     SCANALIGN_OT_auto_axes,
     SCANALIGN_OT_align,
     SCANALIGN_OT_flip,
+    SCANALIGN_OT_to_floor,
     SCANALIGN_OT_quick_align_selection,
     SCANALIGN_PT_main_panel,
 )

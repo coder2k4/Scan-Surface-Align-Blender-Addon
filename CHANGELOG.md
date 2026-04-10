@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.5] - 2026-04-10
+
+### Added
+
+- New `TO FLOOR` button for moving the mesh to the floor plane.
+- `TO FLOOR` in `Object Mode` uses the lowest vertex of the mesh.
+- `TO FLOOR` in `Edit Mode` uses the selected polygon plane.
+- Added axis icon buttons for `X`, `Y`, and `Z` target selection.
+
+### Changed
+
+- Improved the axis selection UI in the sidebar to make `X`, `Y`, and `Z` easier to read and use.
+- Updated addon description to include `TO FLOOR`.
+
 ## [1.0.4] - 2026-04-10
 
 ### Added

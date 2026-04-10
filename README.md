@@ -6,7 +6,7 @@ Author: `Glazyrin Alexey Sergeevich`
 Studio: `3dpotok.ru`  
 Telegram: `@standalone2k`  
 Website: `https://3dpotok.ru`  
-Version: `1.0.4`  
+Version: `1.0.5`  
 Blender: `5.1`
 
 ## Overview
@@ -38,12 +38,20 @@ It works from the right-side `N` panel in `View3D > Scan Align`.
 - Added `FLIP` button after `AUTO ALIGN`
 - `Store Selected Faces` no longer changes the axis you selected manually
 
+## What's New In 1.0.5
+
+- Added `TO FLOOR`
+- In `Object Mode`, `TO FLOOR` moves the mesh down using the lowest vertex
+- In `Edit Mode`, `TO FLOOR` moves the object down using the selected polygon plane
+- Improved axis controls with dedicated `X`, `Y`, `Z` buttons and axis icons
+
 ## Main Features
 
 - Store two polygon sets: `Side 1` and `Side 2`
 - Align stored sides manually to `X`, `Y`, or `Z`
 - `AUTO AXES` for manual side-based alignment
 - `AUTO ALIGN` for automatic print support orientation
+- `TO FLOOR` for placing the mesh on the ground plane
 - `FLIP` to turn the model 180 degrees after auto alignment
 - `Quick Align` for the current polygon selection
 - Repeating `Quick Align` on the same axis flips the model by 180 degrees
@@ -62,6 +70,7 @@ Use this when you want precise control over how a specific surface should be ali
 4. Choose the target axis manually: `X`, `Y`, or `Z`
 5. Optionally store `Side 2`
 6. Click `ALIGN`
+7. If needed, click `TO FLOOR`
 
 ### 2. Automatic Alignment For 3D Printing
 
@@ -72,6 +81,14 @@ Use this when you want the addon to orient the mesh automatically for a stable p
 3. Click `AUTO ALIGN`
 4. The addon analyzes the active mesh and finds the best flat support surface
 5. If needed, click `FLIP` to invert the model by 180 degrees
+6. Click `TO FLOOR` if you want to place the result exactly on the floor plane
+
+## To Floor
+
+`TO FLOOR` works in two different ways:
+
+- In `Object Mode`, it moves the object down until the lowest mesh vertex touches `Z = 0`
+- In `Edit Mode`, it moves the object so the selected polygon plane is placed on `Z = 0`
 
 ## Quick Align
 
@@ -101,6 +118,7 @@ Main controls:
 - `ALIGN`
 - `AUTO AXES`
 - `AUTO ALIGN`
+- `TO FLOOR`
 - `FLIP`
 - `Quick Align`
 
