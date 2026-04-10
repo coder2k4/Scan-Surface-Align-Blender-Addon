@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.blend1
+*.blend2
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store
+scan_surface_align.zip
