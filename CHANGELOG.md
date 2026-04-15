@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.0.7] - 2026-04-15
+
+### Changed
+
+- Renamed the addon to `3DPotok Scan Surface Align`.
+- Moved the Blender sidebar entry to the shared `3DPotok` tab.
+- Updated README and guide references to the new addon name and panel location.
+- Added release notes for version `1.0.7`.
+
 ## [1.0.6] - 2026-04-10
 
 ### Added

@@ -1,12 +1,12 @@
-# 🇬🇧 Scan Surface Align Guide
+# 🇬🇧 3DPotok Scan Surface Align Guide
 
-`Scan Surface Align` helps you quickly orient scans, hard-surface parts, and uneven meshes in Blender for editing, cleanup, retopology, and 3D printing.
+`3DPotok Scan Surface Align` helps you quickly orient scans, hard-surface parts, and uneven meshes in Blender for editing, cleanup, retopology, and 3D printing.
 
 ## 🧭 Addon Location
 
 You can find the panel here:
 
-`View3D > N-panel > Scan Align`
+`View3D > N-panel > 3DPotok`
 
 ## 🧩 Core Workflows
 

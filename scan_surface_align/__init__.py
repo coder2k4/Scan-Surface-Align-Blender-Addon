@@ -1,5 +1,5 @@
 """
-Scan Surface Align
+3DPotok Scan Surface Align
 Author: Glazyrin Alexey Sergeevich
 Studio: 3dpotok.ru
 Telegram: @standalone2k
@@ -8,11 +8,11 @@ License: GPL-3.0-or-later
 """
 
 bl_info = {
-    "name": "Scan Surface Align",
+    "name": "3DPotok Scan Surface Align",
     "author": "Glazyrin Alexey Sergeevich | 3dpotok.ru",
-    "version": (1, 0, 6),
+    "version": (1, 0, 7),
     "blender": (5, 1, 0),
-    "location": "View3D > Sidebar > Scan Align",
+    "location": "View3D > Sidebar > 3DPotok",
     "description": (
         "RU: Выравнивание выделенных поверхностей скана перпендикулярно мировым осям "
         "с сохранением сторон, AUTO ALIGN, TO FLOOR и Quick Align. "
@@ -983,11 +983,11 @@ class SCANALIGN_OT_quick_align_selection(Operator):
 
 
 class SCANALIGN_PT_main_panel(Panel):
-    bl_label = "Scan Align"
+    bl_label = "3DPotok Scan Surface Align"
     bl_idname = "SCANALIGN_PT_main_panel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "Scan Align"
+    bl_category = "3DPotok"
 
     def draw_axis_buttons(self, layout, settings, side):
         current_axis = getattr(settings, f"side{side}_axis")

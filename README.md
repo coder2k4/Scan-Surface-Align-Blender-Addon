@@ -1,4 +1,4 @@
-# Scan Surface Align
+# 3DPotok Scan Surface Align
 
 Blender addon for scan cleanup, mesh orientation, and print-friendly alignment.
 
@@ -6,12 +6,12 @@ Author: `Glazyrin Alexey Sergeevich`
 Studio: `3dpotok.ru`  
 Telegram: `@standalone2k`  
 Website: `https://3dpotok.ru`  
-Version: `1.0.6`  
+Version: `1.0.7`  
 Blender: `5.1`
 
 ## ✨ What This Addon Does
 
-`Scan Surface Align` helps you:
+`3DPotok Scan Surface Align` helps you:
 
 - align scanned surfaces to world axes
 - orient meshes for comfortable editing
@@ -20,7 +20,7 @@ Blender: `5.1`
 
 It works from:
 
-`View3D > N-panel > Scan Align`
+`View3D > N-panel > 3DPotok`
 
 ## 📘 Guides
 
@@ -81,7 +81,7 @@ Choose the guide you prefer:
 1. Download the latest addon archive
 2. Open `Edit > Preferences > Add-ons > Install...`
 3. Select the zip archive
-4. Enable `Scan Surface Align`
+4. Enable `3DPotok Scan Surface Align`
 
 ## 🔗 Additional Project Files
 

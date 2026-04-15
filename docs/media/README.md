@@ -1,6 +1,6 @@
 # Media Gallery
 
-This page contains preview images and animated demos for `Scan Surface Align`.
+This page contains preview images and animated demos for `3DPotok Scan Surface Align`.
 
 ## Preview
 
